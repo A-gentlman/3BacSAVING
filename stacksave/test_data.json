@@ -1,0 +1,25 @@
+{
+  "totalSavings": 5000,
+  "goals": [
+    {
+      "id": "goal-1",
+      "name": "Voyage Japon",
+      "targetAmount": 3000,
+      "currentAmount": 1500,
+      "color": "#6366f1",
+      "icon": "✈️",
+      "createdAt": "2024-01-01",
+      "completed": false
+    }
+  ],
+  "bills": [],
+  "purchases": [],
+  "deposits": [],
+  "dailyRecords": [],
+  "settings": {
+    "name": "Jean Dupont",
+    "currency": "MAD",
+    "notifications": true,
+    "reminderDays": 5
+  }
+}
