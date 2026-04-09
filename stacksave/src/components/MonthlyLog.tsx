@@ -29,13 +29,11 @@ export default function MonthlyLog() {
   const handleNavigateDate = (newDateStr: string) => {
     setSelectedDate(newDateStr);
     const newDate = parseISO(newDateStr);
-    // Sync currentMonth if we move across month boundaries
     if (newDate.getMonth() !== currentMonth.getMonth() || newDate.getFullYear() !== currentMonth.getFullYear()) {
       setCurrentMonth(newDate);
     }
   };
 
-  // Calendar dates logic
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -45,34 +43,34 @@ export default function MonthlyLog() {
   const getDayData = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     const dayPurchases = data.purchases.filter(p => p.date === dateStr);
-    const dayDeposits = data.deposits.filter(d => d.date === dateStr);
-    const dayBills = data.bills.filter(b => b.paid && b.paidAt === dateStr);
+    // For deposits, we extract the date from created_at
+    const dayDeposits = data.deposits.filter(d => d.created_at?.startsWith(dateStr));
+    // For bills, we use due_date as the indicator for the calendar if paid
+    const dayBills = data.bills.filter(b => b.status === 'paid' && b.due_date === dateStr);
 
     const totalExpense = dayPurchases.reduce((s, p) => s + p.amount, 0) + dayBills.reduce((s, b) => s + b.amount, 0);
     const totalSaved = dayDeposits.reduce((s, d) => s + d.amount, 0);
 
-    // Use manual status if exists, otherwise derive it
     const record = data.dailyRecords?.find(r => r.date === dateStr);
-    let status: 'saved' | 'spent' | 'rest' = record?.status || 'rest';
+    let status: 'saved' | 'spent' | 'rest' = 'rest';
     
-    if (!record?.status) {
-      if (totalSaved > 0) status = 'saved';
-      else if (totalExpense > 0) status = 'spent';
-    }
+    if (totalSaved > 0) status = 'saved';
+    else if (totalExpense > 0) status = 'spent';
 
-    return { totalExpense, totalSaved, status, purchases: dayPurchases, deposits: dayDeposits, bills: dayBills };
+    return { totalExpense, totalSaved, status };
   };
 
-  // Month stats
+  const currentMonthStr = format(currentMonth, 'yyyy-MM');
+  
   const monthInfo = data.purchases
-    .filter(p => p.date.startsWith(format(currentMonth, 'yyyy-MM')))
+    .filter(p => p.date.startsWith(currentMonthStr))
     .reduce((acc, p) => acc + p.amount, 0) +
     data.bills
-    .filter(b => b.paid && b.paidAt?.startsWith(format(currentMonth, 'yyyy-MM')))
+    .filter(b => b.status === 'paid' && b.due_date.startsWith(currentMonthStr))
     .reduce((acc, b) => acc + b.amount, 0);
   
   const monthSavings = data.deposits
-    .filter(d => d.date.startsWith(format(currentMonth, 'yyyy-MM')))
+    .filter(d => d.created_at?.startsWith(currentMonthStr))
     .reduce((acc, d) => acc + d.amount, 0);
 
   const statusConfig = {
@@ -108,7 +106,6 @@ export default function MonthlyLog() {
             }}
             className="btn-ghost" 
             style={{ padding: '8px', borderRadius: 99, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-            title={selectedDate ? "Jour précédent" : "Mois précédent"}
           >
             <ChevronLeft size={20} />
           </button>
@@ -131,7 +128,6 @@ export default function MonthlyLog() {
             }}
             className="btn-ghost" 
             style={{ padding: '8px', borderRadius: 99, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-            title={selectedDate ? "Jour suivant" : "Mois suivant"}
           >
             <ChevronRight size={20} />
           </button>
@@ -142,12 +138,12 @@ export default function MonthlyLog() {
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 32 }}>
             <div className="card" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 20, boxShadow: '0 2px 8px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)' }}>
-              <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fff1f2', color: '#f43f5e', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #fecdd3' }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #a7f3d0' }}>
                 <TrendingUp size={24} />
               </div>
               <div>
                 <div style={{ fontSize: 13, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Épargne du mois</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: '#f43f5e', fontVariantNumeric: 'tabular-nums' }}>-{formatCurrency(monthSavings, currency)}</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(monthSavings, currency)}</div>
               </div>
             </div>
             <div className="card" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 20, boxShadow: '0 2px 8px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)' }}>
@@ -201,26 +197,11 @@ export default function MonthlyLog() {
                       animationDelay: `${idx * 8}ms`,
                       position: 'relative',
                       cursor: isCurrentMonth ? 'pointer' : 'default',
-                      transition: 'all var(--transition-ui)',
-                      boxShadow: isCurrentMonth ? 'var(--shadow-xs)' : 'none',
+                      transition: 'all 0.2s',
                     }}
                     onClick={() => {
                       if (isCurrentMonth) {
                         setSelectedDate(format(day, 'yyyy-MM-dd'));
-                      }
-                    }}
-                    onMouseEnter={e => {
-                      if (isCurrentMonth && !isToday) {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = 'var(--shadow)';
-                        e.currentTarget.style.borderColor = 'var(--accent-indigo)';
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (isCurrentMonth && !isToday) {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'var(--shadow-xs)';
-                        e.currentTarget.style.borderColor = cfg.border;
                       }
                     }}
                   >
@@ -236,7 +217,6 @@ export default function MonthlyLog() {
                       }}>
                         {format(day, 'd')}
                       </div>
-                      {/* Removed label as per user request */}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -244,26 +224,26 @@ export default function MonthlyLog() {
                         <div style={{ 
                           fontSize: 10, 
                           fontWeight: 700, 
-                          color: '#f43f5e',
+                          color: '#10b981',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 4
                         }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f43f5e' }} />
-                          -{formatCurrency(dayInfo.totalSaved, currency)}
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
+                          {formatCurrency(dayInfo.totalSaved, currency)}
                         </div>
                       )}
                       {dayInfo.totalExpense > 0 && isCurrentMonth && (
                         <div style={{ 
                           fontSize: 10, 
                           fontWeight: 700, 
-                          color: '#ef4444',
+                          color: '#f59e0b',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 4
                         }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
-                          -{formatCurrency(dayInfo.totalExpense, currency)}
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
+                          {formatCurrency(dayInfo.totalExpense, currency)}
                         </div>
                       )}
                     </div>

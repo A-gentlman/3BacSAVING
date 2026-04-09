@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 };
 
 import AuthGate from '@/components/AuthGate';
+import { AuthProvider } from '@/lib/AuthContext';
 
 export default function RootLayout({
   children,
@@ -21,9 +22,11 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body style={{ background: '#f0f9ff', overflowX: 'hidden' }}>
-        <AuthGate>
-          {children}
-        </AuthGate>
+        <AuthProvider>
+          <AuthGate>
+            {children}
+          </AuthGate>
+        </AuthProvider>
       </body>
     </html>
   );

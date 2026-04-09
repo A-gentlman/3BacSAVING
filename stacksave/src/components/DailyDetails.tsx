@@ -1,16 +1,12 @@
 'use client';
 
 import { useApp } from '@/lib/AppContext';
-import { format, parseISO, addDays, subDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
-  X,
+  FileText,
   TrendingUp,
   ShoppingBag,
-  FileText,
-  CheckCircle2,
-  ArrowLeft,
-  Calendar,
   Save,
   Check
 } from 'lucide-react';
@@ -24,12 +20,10 @@ interface DailyDetailsProps {
 
 export default function DailyDetails({ date, onClose }: DailyDetailsProps) {
   const { data, currency, upsertDailyRecord } = useApp();
-  const parsedDate = parseISO(date);
 
   // Find existing record
   const existingRecord = data.dailyRecords?.find(r => r.date === date);
   
-  const [status, setStatus] = useState<'saved' | 'spent' | 'rest'>(existingRecord?.status || 'rest');
   const [notes, setNotes] = useState(existingRecord?.notes || '');
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -37,43 +31,40 @@ export default function DailyDetails({ date, onClose }: DailyDetailsProps) {
   // Reset state when date changes
   useEffect(() => {
     const record = data.dailyRecords?.find(r => r.date === date);
-    setStatus(record?.status || 'rest');
     setNotes(record?.notes || '');
   }, [date, data.dailyRecords]);
 
   // Derived financial data
   const dayPurchases = data.purchases.filter(p => p.date === date);
-  const dayDeposits = data.deposits.filter(d => d.date === date);
-  const dayBills = data.bills.filter(b => b.paid && b.paidAt === date);
+  const dayDeposits = data.deposits.filter(d => d.created_at?.startsWith(date));
+  const dayBills = data.bills.filter(b => b.status === 'paid' && b.due_date === date);
 
   const totalSpent = dayPurchases.reduce((s, p) => s + p.amount, 0);
   const totalBills = dayBills.reduce((s, b) => s + b.amount, 0);
   const totalExpense = totalSpent + totalBills;
   const totalSaved = dayDeposits.reduce((s, d) => s + d.amount, 0);
 
-  useEffect(() => {
-    // Auto-update status if it hasn't been manually set and there's activity
-    if (!existingRecord?.status) {
-      if (totalSaved > 0) setStatus('saved');
-      else if (totalExpense > 0) setStatus('spent');
-      else setStatus('rest');
-    }
-  }, [date, totalSaved, totalExpense, existingRecord?.status]);
-
   // Derive if there are unsaved changes
-  const isDirty = status !== (existingRecord?.status || 'rest') || notes !== (existingRecord?.notes || '');
+  const isDirty = notes !== (existingRecord?.notes || '');
 
   const handleSave = () => {
     if (!isDirty) return;
     setIsSaving(true);
-    upsertDailyRecord(date, { status, notes });
+    // Determine status automatically if needed, or just default to 'rest' for now as custom status was removed in simplification
+    upsertDailyRecord(date, { notes });
     setTimeout(() => {
       setIsSaving(false);
       setShowSuccess(true);
-      // We don't need a timeout to hide success anymore, 
-      // as isDirty will handle the toggle back if the user types.
+      setTimeout(() => setShowSuccess(false), 3000);
     }, 600);
   };
+
+  const allTransactions = [
+    ...dayPurchases.map(p => ({ ...p, type: 'purchase', label: p.note || 'Dépense' })),
+    ...dayDeposits.map(d => ({ ...d, type: 'deposit', label: 'Épargne Objectif' })),
+    ...dayBills.map(b => ({ ...b, type: 'bill', label: b.title }))
+  ].sort((a, b) => (b as any).created_at?.localeCompare((a as any).created_at) || 0);
+
   return (
     <div className="animate-fade-in" style={{ padding: '0 32px 32px' }}>
       {/* Action Header (Save only) */}
@@ -88,27 +79,25 @@ export default function DailyDetails({ date, onClose }: DailyDetailsProps) {
             gap: 8,
             padding: '12px 24px',
             borderRadius: 12,
-            background: !isDirty ? '#10b981' : 'var(--accent-indigo)',
+            background: isSaving ? '#94a3b8' : (isDirty ? 'var(--accent-indigo)' : '#10b981'),
             color: 'white',
             border: 'none',
             fontWeight: 700,
             cursor: isDirty ? 'pointer' : 'default',
-            boxShadow: !isDirty ? '0 4px 12px rgba(16,185,129,0.2)' : '0 4px 12px rgba(99,102,241,0.2)',
+            boxShadow: isDirty ? '0 4px 12px rgba(99,102,241,0.2)' : '0 4px 12px rgba(16,185,129,0.2)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            opacity: isSaving ? 0.7 : 1,
-            transform: !isDirty && showSuccess ? 'scale(1.02)' : 'scale(1)',
           }}
         >
           {isSaving ? 'Enregistrement...' : (
-            !isDirty ? (
+            showSuccess ? (
               <>
                 <Check size={18} />
-                {showSuccess ? 'Notes enregistrées !' : 'Notes à jour'}
+                Enregistré !
               </>
             ) : (
               <>
                 <Save size={18} />
-                Enregistrer les notes
+                {isDirty ? 'Enregistrer les notes' : 'Notes à jour'}
               </>
             )
           )}
@@ -130,7 +119,7 @@ export default function DailyDetails({ date, onClose }: DailyDetailsProps) {
                   </div>
                   <div>
                     <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Épargné</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: '#f43f5e' }}>-{formatCurrency(totalSaved, currency)}</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#f43f5e' }}>{formatCurrency(totalSaved, currency)}</div>
                   </div>
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8' }}>
@@ -149,7 +138,7 @@ export default function DailyDetails({ date, onClose }: DailyDetailsProps) {
                   </div>
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8' }}>
-                  {dayPurchases.length} achat{dayPurchases.length !== 1 ? 's' : ''}
+                   {dayPurchases.length} achat{dayPurchases.length !== 1 ? 's' : ''}
                 </div>
               </div>
 
@@ -213,12 +202,8 @@ export default function DailyDetails({ date, onClose }: DailyDetailsProps) {
           Détail des transactions
         </h3>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {[...dayPurchases.map(p => ({...p, type: 'purchase'})), 
-            ...dayDeposits.map(d => ({...d, type: 'deposit', category: 'épargne'})), 
-            ...dayBills.map(b => ({...b, type: 'bill'}))].length > 0 ? (
-            [...dayPurchases.map(p => ({...p, type: 'purchase'})), 
-             ...dayDeposits.map(d => ({...d, type: 'deposit', category: 'épargne'})), 
-             ...dayBills.map(b => ({...b, type: 'bill'}))].map((item, idx, arr) => (
+          {allTransactions.length > 0 ? (
+            allTransactions.map((item, idx, arr) => (
               <div key={idx} style={{ 
                 padding: '16px 24px', 
                 borderBottom: idx === arr.length - 1 ? 'none' : '1px solid #f1f5f9',
@@ -233,15 +218,14 @@ export default function DailyDetails({ date, onClose }: DailyDetailsProps) {
                     borderRadius: '50%', 
                     background: item.type === 'deposit' ? '#10b981' : (item.type === 'bill' ? '#6366f1' : '#f59e0b') 
                   }} />
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{'name' in item ? item.name : 'Épargne'}</span>
-                  {'category' in item && <span style={{ fontSize: 12, color: '#94a3b8', background: '#f8fafc', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>{(item as any).category}</span>}
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{item.label}</span>
                 </div>
                 <span style={{ 
                   fontSize: 15, 
                   fontWeight: 800, 
                   color: item.type === 'deposit' ? '#f43f5e' : (item.type === 'bill' ? '#6366f1' : '#0f172a')
                 }}>
-                  -{formatCurrency(item.amount, currency)}
+                  {item.type === 'deposit' ? '+' : '-'}{formatCurrency(item.amount, currency)}
                 </span>
               </div>
             ))

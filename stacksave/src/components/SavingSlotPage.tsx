@@ -7,13 +7,9 @@ import {
   ArrowDownRight, 
   Plus, 
   Minus, 
-  Filter, 
-  Calendar,
-  Search,
-  ChevronDown,
-  TrendingUp,
-  History,
-  Info
+  TrendingUp, 
+  History, 
+  Info 
 } from 'lucide-react';
 import { useApp } from '@/lib/AppContext';
 import { formatCurrency } from '@/lib/utils';
@@ -30,7 +26,7 @@ import { format, parseISO, startOfWeek, startOfMonth, isWithinInterval, subDays 
 import { fr } from 'date-fns/locale';
 
 export default function SavingSlotPage() {
-  const { data, addSavingTransaction, currency } = useApp();
+  const { data, addSavingTransaction, currency, savingBalance } = useApp();
   const [filterType, setFilterType] = useState<'all' | 'add' | 'use'>('all');
   const [filterTime, setFilterTime] = useState<'all' | 'week' | 'month'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -42,14 +38,21 @@ export default function SavingSlotPage() {
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
 
-  const transactions = data.savingTransactions || [];
-  const balance = data.savingBalance || 0;
+  const transactions = useMemo(() => {
+    const txs = [...(data.savingTransactions || [])].sort((a, b) => a.date.localeCompare(b.date));
+    let balance = 0;
+    return txs.map(t => {
+      const amt = t.type === 'add' ? t.amount : -t.amount;
+      balance += amt;
+      return { ...t, balanceAfter: balance };
+    }).reverse(); // Most recent first for table
+  }, [data.savingTransactions]);
 
-  const totalAdded = transactions
+  const totalAdded = data.savingTransactions
     .filter(t => t.type === 'add')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const totalUsed = transactions
+  const totalUsed = data.savingTransactions
     .filter(t => t.type === 'use')
     .reduce((sum, t) => sum + t.amount, 0);
 
@@ -79,41 +82,8 @@ export default function SavingSlotPage() {
   }, [transactions, filterType, filterTime]);
 
   // Chart data aggregation
-  const chartData = useMemo(() => {
-    const days = 30; // Last 30 days for charts
-    const result = [];
-    const now = new Date();
-
-    for (let i = days; i >= 0; i--) {
-      const d = subDays(now, i);
-      const dStr = format(d, 'yyyy-MM-dd');
-      
-      const dayAdds = transactions
-        .filter(t => t.type === 'add' && t.date === dStr)
-        .reduce((s, t) => s + t.amount, 0);
-      
-      const dayUses = transactions
-        .filter(t => t.type === 'use' && t.date === dStr)
-        .reduce((s, t) => s + t.amount, 0);
-
-      result.push({
-        date: format(d, 'dd MMM', { locale: fr }),
-        added: dayAdds,
-        used: dayUses,
-        displayDate: format(d, 'd MMMM yyyy', { locale: fr })
-      });
-    }
-    return result;
-  }, [transactions]);
-
-  // Cumulative chart data
   const cumulativeData = useMemo(() => {
-    let runningAdd = 0;
-    let runningUse = 0;
-    
-    // For cumulative, we need to sort all transactions by date first
-    const sortedAll = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
-    
+    const rawTxs = [...(data.savingTransactions || [])].sort((a, b) => a.date.localeCompare(b.date));
     const days = 30;
     const result = [];
     const now = new Date();
@@ -122,9 +92,8 @@ export default function SavingSlotPage() {
       const d = subDays(now, i);
       const dStr = format(d, 'yyyy-MM-dd');
       
-      // Calculate running totals up to this date
-      const addsUntil = sortedAll.filter(t => t.type === 'add' && t.date <= dStr).reduce((s, t) => s + t.amount, 0);
-      const usesUntil = sortedAll.filter(t => t.type === 'use' && t.date <= dStr).reduce((s, t) => s + t.amount, 0);
+      const addsUntil = rawTxs.filter(t => t.type === 'add' && t.date <= dStr).reduce((s, t) => s + t.amount, 0);
+      const usesUntil = rawTxs.filter(t => t.type === 'use' && t.date <= dStr).reduce((s, t) => s + t.amount, 0);
 
       result.push({
         date: format(d, 'dd MMM', { locale: fr }),
@@ -134,7 +103,7 @@ export default function SavingSlotPage() {
       });
     }
     return result;
-  }, [transactions]);
+  }, [data.savingTransactions]);
 
   const handleAdd = () => {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -153,7 +122,7 @@ export default function SavingSlotPage() {
 
   const handleUse = () => {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0 || amt > balance) return;
+    if (!amt || amt <= 0 || amt > savingBalance) return;
     addSavingTransaction({
       type: 'use',
       amount: amt,
@@ -171,11 +140,7 @@ export default function SavingSlotPage() {
     <div style={{ padding: '32px', maxWidth: 1240, margin: '0 auto' }}>
       
       {/* Header & Main Cards */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
-        <div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: 8 }}>Cagnotte d’épargne</h2>
-          <p style={{ fontSize: 14, color: '#64748b', fontWeight: 500 }}>Gérez votre réserve d&apos;argent manuelle et suivez vos flux.</p>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', marginBottom: 32 }}>
         <div style={{ display: 'flex', gap: 12 }}>
           <button 
             className="btn-primary" 
@@ -187,10 +152,10 @@ export default function SavingSlotPage() {
           <button 
             className="btn-primary" 
             onClick={() => {
-              if (balance > 0) setShowUseModal(true);
+              if (savingBalance > 0) setShowUseModal(true);
             }}
-            disabled={balance <= 0}
-            style={{ background: '#f59e0b', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)', opacity: balance <= 0 ? 0.5 : 1 }}
+            disabled={savingBalance <= 0}
+            style={{ background: '#f59e0b', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)', opacity: savingBalance <= 0 ? 0.5 : 1 }}
           >
             <Minus size={18} /> Utiliser
           </button>
@@ -200,10 +165,10 @@ export default function SavingSlotPage() {
       {/* Stats Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20, marginBottom: 32 }}>
         {[
-          { label: 'Solde Actuel', value: balance, icon: Wallet, color: '#6366f1' },
+          { label: 'Solde Actuel', value: savingBalance, icon: Wallet, color: '#6366f1' },
           { label: 'Total Ajouté', value: totalAdded, icon: ArrowUpRight, color: '#10b981' },
           { label: 'Total Utilisé', value: totalUsed, icon: ArrowDownRight, color: '#f59e0b' },
-          { label: 'Disponible', value: balance, icon: TrendingUp, color: '#06b6d4' }
+          { label: 'Disponible', value: savingBalance, icon: TrendingUp, color: '#06b6d4' }
         ].map((stat, i) => (
           <div key={i} className="card animate-fade-in-up" style={{ padding: 24, animationDelay: `${i * 100}ms` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
@@ -219,7 +184,6 @@ export default function SavingSlotPage() {
 
       {/* Charts Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: 24, marginBottom: 32 }}>
-        {/* Saving Chart */}
         <div className="card animate-fade-in-up" style={{ padding: '24px', animationDelay: '400ms' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <div>
@@ -239,7 +203,6 @@ export default function SavingSlotPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                <YAxis hide />
                 <Tooltip 
                   contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
                   labelStyle={{ fontWeight: 700, color: '#0f172a', marginBottom: 4 }}
@@ -259,7 +222,6 @@ export default function SavingSlotPage() {
           </div>
         </div>
 
-        {/* Used Chart */}
         <div className="card animate-fade-in-up" style={{ padding: '24px', animationDelay: '500ms' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <div>
@@ -279,7 +241,6 @@ export default function SavingSlotPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                <YAxis hide />
                 <Tooltip 
                   contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
                   labelStyle={{ fontWeight: 700, color: '#0f172a', marginBottom: 4 }}
@@ -385,7 +346,7 @@ export default function SavingSlotPage() {
                       {t.type === 'add' ? '+' : '-'}{formatCurrency(t.amount, currency)}
                     </td>
                     <td style={{ padding: '16px 24px', textAlign: 'right', fontWeight: 700, fontSize: 14, color: '#0f172a' }}>
-                      {formatCurrency(t.balanceAfter, currency)}
+                      {formatCurrency(t.balanceAfter || 0, currency)}
                     </td>
                   </tr>
                 ))
@@ -421,7 +382,7 @@ export default function SavingSlotPage() {
                 />
                 {!showAddModal && (
                   <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 6, fontWeight: 600 }}>
-                    Maximum disponible: {formatCurrency(balance, currency)}
+                    Maximum disponible: {formatCurrency(savingBalance, currency)}
                   </div>
                 )}
               </div>
@@ -455,7 +416,7 @@ export default function SavingSlotPage() {
               <button 
                 className="btn-primary" 
                 onClick={showAddModal ? handleAdd : handleUse}
-                disabled={!amount || parseFloat(amount) <= 0 || (showUseModal && parseFloat(amount) > balance)}
+                disabled={!amount || parseFloat(amount) <= 0 || (showUseModal && parseFloat(amount) > savingBalance)}
                 style={{ flex: 1, background: showAddModal ? '#10b981' : '#f59e0b' }}
               >
                 Confirmer

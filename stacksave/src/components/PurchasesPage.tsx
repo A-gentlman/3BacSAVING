@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import { useApp } from '@/lib/AppContext';
-import { format, parseISO } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { ShoppingBag, Search, Plus, Trash2, RotateCcw } from 'lucide-react';
 import QuickAddModal from './QuickAddModal';
 import { formatCurrency } from '@/lib/utils';
@@ -14,11 +12,11 @@ export default function PurchasesPage() {
   const [showModal, setShowModal] = useState(false);
 
   const filtered = data.purchases
-    .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(p => (p.note || '').toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const totalSpent = data.purchases.reduce((s, p) => s + p.amount, 0) +
-    data.bills.filter(b => b.paid).reduce((s, b) => s + b.amount, 0);
+    data.bills.filter(b => b.status === 'paid').reduce((s, b) => s + b.amount, 0);
 
   return (
     <div style={{ padding: '32px', maxWidth: 900, margin: '0 auto' }}>
@@ -40,7 +38,7 @@ export default function PurchasesPage() {
           </div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>Transactions</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a' }}>{data.purchases.length + data.bills.filter(b => b.paid).length}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a' }}>{data.purchases.length + data.bills.filter(b => b.status === 'paid').length}</div>
           </div>
         </div>
       </div>
@@ -80,15 +78,9 @@ export default function PurchasesPage() {
                   <ShoppingBag size={22} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{p.name}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{p.note || 'Dépense'}</div>
                   <div style={{ fontSize: 12, fontWeight: 500, color: '#94a3b8' }}>
-                    {(() => {
-                      try {
-                        return format(parseISO(p.date), 'EEEE d MMMM yyyy', { locale: fr });
-                      } catch (e) {
-                        return 'Date inconnue';
-                      }
-                    })()}
+                    {p.date}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>

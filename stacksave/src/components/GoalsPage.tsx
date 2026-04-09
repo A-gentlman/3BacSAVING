@@ -3,24 +3,22 @@
 import { useState } from 'react';
 import { useApp } from '@/lib/AppContext';
 import { Goal } from '@/lib/types';
-import { differenceInDays, parseISO } from 'date-fns';
-import { TrendingUp, CheckCircle, Trophy, Target, Plus, Trash2, Edit2, RotateCcw } from 'lucide-react';
+import { TrendingUp, CheckCircle, Trophy, Target, Plus, Trash2, Edit2 } from 'lucide-react';
 import QuickAddModal from './QuickAddModal';
 import { formatCurrency } from '@/lib/utils';
 import GoalIcon from './GoalIcon';
 
-function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onToggle, onEdit }: {
+function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onEdit }: {
   goal: Goal;
   currency: 'MAD' | 'Riyal';
   delay?: number;
   onAddMoney?: () => void;
   onDelete: (id: string) => void;
-  onToggle: (id: string, currentStatus: boolean) => void;
   onEdit: (id: string) => void;
 }) {
-  const pct = Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100));
-  const remaining = goal.targetAmount - goal.currentAmount;
-  const daysLeft = goal.deadline ? differenceInDays(parseISO(goal.deadline), new Date()) : null;
+  const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
+  const remaining = goal.target_amount - goal.current_amount;
+  const isCompleted = goal.current_amount >= goal.target_amount;
 
   return (
     <div
@@ -33,7 +31,7 @@ function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onToggle, o
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
-        opacity: goal.completed ? 0.7 : 1,
+        opacity: isCompleted ? 0.7 : 1,
         boxShadow: '0 2px 8px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)',
       }}
     >
@@ -48,8 +46,8 @@ function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onToggle, o
               <GoalIcon name={goal.icon} size={26} />
             </div>
             <div>
-              <h4 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{goal.name}</h4>
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#94a3b8' }}>Cible: {formatCurrency(goal.targetAmount, currency)}</div>
+              <h4 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{goal.title}</h4>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#94a3b8' }}>Cible: {formatCurrency(goal.target_amount, currency)}</div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6, position: 'relative', zIndex: 10 }}>
@@ -63,19 +61,6 @@ function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onToggle, o
               }}
             >
               <Edit2 size={14} />
-            </button>
-            <button
-              onClick={() => onToggle(goal.id, goal.completed)}
-              style={{
-                width: 32, height: 32, borderRadius: 8, border: 'none',
-                background: goal.completed ? '#10b981' : '#f1f5f9',
-                color: goal.completed ? 'white' : '#94a3b8',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.2s',
-              }}
-              title={goal.completed ? "Réactiver l'objectif" : "Marquer comme terminé"}
-            >
-              {goal.completed ? <RotateCcw size={16} /> : <CheckCircle size={16} />}
             </button>
             <button
               onClick={() => onDelete(goal.id)}
@@ -94,7 +79,7 @@ function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onToggle, o
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{pct}% complété</span>
             <span style={{ fontSize: 14, fontWeight: 800, color: goal.color }}>
-              {formatCurrency(goal.currentAmount, currency)}
+              {formatCurrency(goal.current_amount, currency)}
             </span>
           </div>
           <div className="progress-bar" style={{ height: 8, background: '#f1f5f9' }}>
@@ -114,15 +99,9 @@ function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onToggle, o
             <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Restant</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{formatCurrency(remaining > 0 ? remaining : 0, currency)}</div>
           </div>
-          <div style={{ flex: 1, padding: '12px', background: '#f8fafc', borderRadius: 12, border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Échéance</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: daysLeft && daysLeft < 7 ? '#ef4444' : '#0f172a' }}>
-              {daysLeft !== null ? (daysLeft < 0 ? 'Expiré' : `${daysLeft} jours`) : '-'}
-            </div>
-          </div>
         </div>
 
-        {onAddMoney && !goal.completed && (
+        {onAddMoney && !isCompleted && (
           <button
             onClick={onAddMoney}
             className="btn-primary"
@@ -134,7 +113,7 @@ function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onToggle, o
         )}
       </div>
 
-      {goal.completed && (
+      {isCompleted && (
         <div style={{
           position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.4)',
           backdropFilter: 'grayscale(1)', pointerEvents: 'none',
@@ -151,21 +130,17 @@ function GoalCard({ goal, currency, delay = 0, onAddMoney, onDelete, onToggle, o
 }
 
 export default function GoalsPage() {
-  const { data, currency, deleteGoal, updateGoal } = useApp();
+  const { data, currency, deleteGoal, savingBalance } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editGoalId, setEditGoalId] = useState<string | null>(null);
   const [depositModal, setDepositModal] = useState<string | null>(null);
 
-  const activeGoals = data.goals.filter(g => !g.completed);
-  const completedGoals = data.goals.filter(g => g.completed);
+  const activeGoals = data.goals.filter(g => g.current_amount < g.target_amount);
+  const completedGoals = data.goals.filter(g => g.current_amount >= g.target_amount);
   
-  const totalTarget = activeGoals.reduce((s, g) => s + g.targetAmount, 0);
-  const totalSaved = activeGoals.reduce((s, g) => s + g.currentAmount, 0);
-  const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
-
-  const handleToggleGoal = (id: string, currentStatus: boolean) => {
-    updateGoal(id, { completed: !currentStatus, completedAt: !currentStatus ? new Date().toISOString() : undefined });
-  };
+  const totalTarget = activeGoals.reduce((s, g) => s + g.target_amount, 0);
+  const totalSavedOnActive = activeGoals.reduce((s, g) => s + g.current_amount, 0);
+  const overallPct = totalTarget > 0 ? Math.round((totalSavedOnActive / totalTarget) * 100) : 0;
 
   const handleEditGoal = (id: string) => {
     setEditGoalId(id);
@@ -183,7 +158,7 @@ export default function GoalsPage() {
             </div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>Épargne Globale</div>
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{formatCurrency(data.totalSavings, currency)}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{formatCurrency(savingBalance, currency)}</div>
           <div style={{ fontSize: 13, fontWeight: 500, color: '#94a3b8', marginTop: 4 }}>Sur tous les comptes</div>
         </div>
 
@@ -239,7 +214,6 @@ export default function GoalsPage() {
               delay={i * 50}
               onAddMoney={() => setDepositModal(g.id)}
               onDelete={deleteGoal}
-              onToggle={handleToggleGoal}
               onEdit={handleEditGoal}
             />
           ))}
@@ -262,7 +236,6 @@ export default function GoalsPage() {
                 currency={currency}
                 delay={i * 50}
                 onDelete={deleteGoal}
-                onToggle={handleToggleGoal}
                 onEdit={handleEditGoal}
               />
             ))}

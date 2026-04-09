@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard': { title: 'Tableau de bord', subtitle: 'Votre aperçu financier' },
+  '/cagnotte': { title: 'Ma Cagnotte', subtitle: 'Gérez vos économies et transferts' },
   '/objectifs': { title: 'Objectifs d\'épargne', subtitle: 'Suivez vos étapes' },
   '/factures': { title: 'Factures & Paiements', subtitle: 'Gérez vos dépenses' },
   '/achats': { title: 'Achats', subtitle: 'Surveillez vos dépenses' },

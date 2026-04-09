@@ -1,9 +1,11 @@
 'use client';
 
 import { LayoutDashboard, Target, Receipt, ShoppingBag, Settings, TrendingUp, X, Calendar, Wallet } from 'lucide-react';
-import { useApp } from '@/lib/AppContext';
+import { useAuth } from '@/lib/AuthContext';
 import Link from 'next/link';
+import { useApp } from '@/lib/AppContext';
 import { usePathname } from 'next/navigation';
+import { LogOut } from 'lucide-react';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -12,17 +14,18 @@ interface SidebarProps {
 
 const navItems = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, href: '/dashboard' },
-  { id: 'goals', label: 'Objectifs', icon: Target, href: '/objectifs' },
-  { id: 'bills', label: 'Factures', icon: Receipt, href: '/factures' },
-  { id: 'purchases', label: 'Achats', icon: ShoppingBag, href: '/achats' },
   { id: 'saving-slot', label: 'Cagnotte', icon: Wallet, href: '/cagnotte' },
+  { id: 'purchases', label: 'Achats', icon: ShoppingBag, href: '/achats' },
+  { id: 'bills', label: 'Factures', icon: Receipt, href: '/factures' },
+  { id: 'goals', label: 'Objectifs', icon: Target, href: '/objectifs' },
   { id: 'log', label: 'Journal', icon: Calendar, href: '/journal' },
   { id: 'settings', label: 'Paramètres', icon: Settings, href: '/parametres' },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { currentUser } = useApp();
-  const userName = currentUser || 'Utilisateur';
+  const { user, signOut } = useAuth();
+  const { data } = useApp();
+  const userName = data.settings?.name || user?.user_metadata?.full_name || user?.email || 'Utilisateur';
   const pathname = usePathname();
 
   return (
@@ -134,6 +137,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               background: '#ffffff',
               borderRadius: 14,
               border: '1px solid #e2e8f0',
+              marginBottom: 12
             }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10,
@@ -152,6 +156,27 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <div style={{ fontSize: 11, fontWeight: 500, color: '#64748b' }}>Plan Premium</div>
               </div>
             </div>
+            
+            <button 
+              onClick={() => signOut()}
+              className="btn-ghost"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#ef4444',
+                background: '#fef2f2',
+                border: '1px solid #fee2e2'
+              }}
+            >
+              <LogOut size={16} />
+              Déconnexion
+            </button>
           </div>
         </div>
       </aside>

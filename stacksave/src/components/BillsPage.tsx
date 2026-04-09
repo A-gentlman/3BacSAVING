@@ -14,8 +14,8 @@ const categoryEmoji: Record<string, string> = {
   insurance: '🛡️', loan: '🏦', other: '📦',
 };
 
-function urgencyInfo(dueDate: string, paid: boolean) {
-  if (paid) return { color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0', label: 'Payé' };
+function urgencyInfo(dueDate: string, status: 'paid' | 'unpaid') {
+  if (status === 'paid') return { color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0', label: 'Payé' };
   const days = differenceInDays(parseISO(dueDate), new Date());
   if (days < 0) return { color: '#ef4444', bg: '#fef2f2', border: '#fecaca', label: 'En retard' };
   if (days <= 3) return { color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', label: `Sous ${days}j` };
@@ -29,9 +29,10 @@ function BillCard({ bill, currency, onToggle, onDelete, onEdit }: {
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
 }) {
-  const info = urgencyInfo(bill.dueDate, bill.paid);
-  const days = differenceInDays(parseISO(bill.dueDate), new Date());
-  const isOverdue = !bill.paid && days < 0;
+  const info = urgencyInfo(bill.due_date, bill.status);
+  const days = differenceInDays(parseISO(bill.due_date), new Date());
+  const isPaid = bill.status === 'paid';
+  const isOverdue = !isPaid && days < 0;
 
   return (
     <div
@@ -41,9 +42,9 @@ function BillCard({ bill, currency, onToggle, onDelete, onEdit }: {
         display: 'flex',
         alignItems: 'center',
         gap: 20,
-        background: bill.paid ? '#f0fdf4' : '#fff',
-        border: isOverdue ? '2px solid #fca5a5' : `1px solid ${bill.paid ? '#bbf7d0' : 'var(--border)'}`,
-        opacity: bill.paid ? 0.6 : 1,
+        background: isPaid ? '#f0fdf4' : '#fff',
+        border: isOverdue ? '2px solid #fca5a5' : `1px solid ${isPaid ? '#bbf7d0' : 'var(--border)'}`,
+        opacity: isPaid ? 0.6 : 1,
         boxShadow: '0 2px 8px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)',
       }}
     >
@@ -53,37 +54,27 @@ function BillCard({ bill, currency, onToggle, onDelete, onEdit }: {
         background: info.bg, border: `1px solid ${info.border}`,
         flexShrink: 0,
       }}>
-        {categoryEmoji[bill.category] || '📦'}
+        <Receipt size={24} color={info.color} strokeWidth={2.5} />
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <span style={{
-            fontSize: 16, fontWeight: 700, color: bill.paid ? '#64748b' : '#0f172a',
-            textDecoration: bill.paid ? 'line-through' : 'none',
+            fontSize: 16, fontWeight: 700, color: isPaid ? '#64748b' : '#0f172a',
+            textDecoration: isPaid ? 'line-through' : 'none',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {bill.name}
+            {bill.title}
           </span>
-          {bill.recurring && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-              background: '#eef2ff', color: '#6366f1',
-              border: '1px solid #c7d2fe', flexShrink: 0,
-            }}>
-              MENSUEL
-            </span>
-          )}
         </div>
         <div style={{ fontSize: 13, fontWeight: 500, color: '#94a3b8' }}>
-          Échéance: {format(parseISO(bill.dueDate), 'd MMMM yyyy', { locale: fr })}
-          {bill.paid && bill.paidAt && ` • Payé le ${format(parseISO(bill.paidAt), 'd MMM', { locale: fr })}`}
+          Échéance: {format(parseISO(bill.due_date), 'd MMMM yyyy', { locale: fr })}
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0 }}>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: bill.paid ? '#64748b' : '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: isPaid ? '#64748b' : '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
             {formatCurrency(bill.amount, currency)}
           </div>
           <div style={{
@@ -103,13 +94,13 @@ function BillCard({ bill, currency, onToggle, onDelete, onEdit }: {
             style={{
               width: 38, height: 38, borderRadius: 10,
               border: '1px solid var(--border)',
-              background: bill.paid ? '#10b981' : '#f8fafc',
-              cursor: 'pointer', color: bill.paid ? '#fff' : '#64748b',
+              background: isPaid ? '#10b981' : '#f8fafc',
+              cursor: 'pointer', color: isPaid ? '#fff' : '#64748b',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.2s',
-              boxShadow: bill.paid ? '0 4px 10px rgba(16,185,129,0.2)' : 'none',
+              boxShadow: isPaid ? '0 4px 10px rgba(16,185,129,0.2)' : 'none',
             }}
-            title={bill.paid ? "Marquer comme non payé" : "Marquer comme payé"}
+            title={isPaid ? "Marquer comme non payé" : "Marquer comme payé"}
           >
             <Check size={18} strokeWidth={3} />
           </button>
@@ -141,19 +132,19 @@ export default function BillsPage() {
   const [filter, setFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
 
   const filtered = data.bills.filter(b => {
-    if (filter === 'unpaid') return !b.paid;
-    if (filter === 'paid') return b.paid;
+    if (filter === 'unpaid') return b.status === 'unpaid';
+    if (filter === 'paid') return b.status === 'paid';
     return true;
   }).sort((a, b) => {
-    if (a.paid !== b.paid) return a.paid ? 1 : -1;
-    return a.dueDate.localeCompare(b.dueDate);
+    if (a.status !== b.status) return a.status === 'paid' ? 1 : -1;
+    return a.due_date.localeCompare(b.due_date);
   });
 
-  const unpaid = data.bills.filter(b => !b.paid);
-  const paid = data.bills.filter(b => b.paid);
-  const overdueCount = unpaid.filter(b => differenceInDays(parseISO(b.dueDate), new Date()) < 0).length;
+  const unpaid = data.bills.filter(b => b.status === 'unpaid');
+  const paid = data.bills.filter(b => b.status === 'paid');
+  const overdueCount = unpaid.filter(b => differenceInDays(parseISO(b.due_date), new Date()) < 0).length;
   const dueSoon = unpaid.filter(b => {
-    const d = differenceInDays(parseISO(b.dueDate), new Date());
+    const d = differenceInDays(parseISO(b.due_date), new Date());
     return d >= 0 && d <= 3;
   }).length;
   const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);

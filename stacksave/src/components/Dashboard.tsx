@@ -1,430 +1,416 @@
 'use client';
 
 import { useApp } from '@/lib/AppContext';
-import { format, differenceInDays, parseISO } from 'date-fns';
-import {
-  TrendingUp, Target, Receipt, ShoppingBag,
-  ArrowUpRight, Zap, CheckCircle
-} from 'lucide-react';
+import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useState } from 'react';
-import QuickAddModal from './QuickAddModal';
+import { useState, useMemo } from 'react';
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell
+} from 'recharts';
+import { 
+  TrendingUp, Calendar, Tag, Target, Clock, Plus, ArrowUpRight, 
+  ArrowDownRight, Receipt, Activity, ShoppingBag, Coffee
+} from 'lucide-react';
+import Link from 'next/link';
 import { Goal } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import GoalIcon from './GoalIcon';
+import { useAuth } from '@/lib/AuthContext';
 
-function StatCard({
-  label, value, sub, icon, color, delay = 0, href,
-}: {
-  label: string; value: string; sub?: string; icon: React.ReactNode; color: string; delay?: number; href?: string;
-}) {
-  const content = (
-    <div
-      className="card animate-fade-in-up"
-      style={{
-        padding: '24px',
-        animationDelay: `${delay}ms`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16,
-        cursor: href ? 'pointer' : 'default',
-        position: 'relative',
-        overflow: 'hidden',
-        boxShadow: '0 2px 8px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)',
-      }}
-    >
+// Custom Tooltip component for Recharts
+const CustomTooltip = ({ active, payload, label, prefix = '' }: any) => {
+  if (active && payload && payload.length) {
+    return (
       <div style={{
-        width: 44, height: 44, borderRadius: 12,
-        background: `${color}12`,
-        color: color,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        border: `1px solid ${color}20`,
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        padding: '12px 16px',
+        borderRadius: '12px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.05)',
       }}>
-        {icon}
+        <p style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{label}</p>
+        <p style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{prefix}{formatCurrency(payload[0].value, 'MAD')}</p>
       </div>
-      <div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
-          {value}
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginTop: 6 }}>{label}</div>
-        {sub && (
-          <div style={{ 
-            fontSize: 11, 
-            color: color, 
-            marginTop: 8, 
-            fontWeight: 700,
-            display: 'inline-flex',
-            padding: '2px 8px',
-            background: `${color}10`,
-            borderRadius: 99,
-          }}>
-            {sub}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    );
+  }
+  return null;
+};
 
-  if (href) return <Link href={href} style={{ textDecoration: 'none' }}>{content}</Link>;
-  return content;
-}
+// Activity Row
+function ActivityRow({ activity, currency }: { activity: any; currency: string }) {
+  const isPositive = activity.amount > 0;
+  
+  // Choose icon based on type
+  let Icon = Receipt;
+  let iconBg = '#fee2e2';
+  let iconColor = '#ef4444';
+  
+  if (activity.type === 'saving' || activity.type === 'deposit') {
+    Icon = TrendingUp;
+    iconBg = '#e0e7ff';
+    iconColor = '#6366f1';
+  } else if (activity.type === 'purchase') {
+    Icon = ShoppingBag;
+    iconBg = '#fee2e2';
+    iconColor = '#ef4444';
+  }
 
-function GoalMiniCard({ goal }: { goal: Goal }) {
-  const pct = Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100));
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 16,
-      padding: '16px 0', borderBottom: '1px solid var(--border)',
+      display: 'flex',
+      alignItems: 'center',
+      padding: '16px 0',
+      borderBottom: '1px solid #f1f5f9',
     }}>
       <div style={{
-        width: 44, height: 44, borderRadius: 12, fontSize: 22,
+        width: 44, height: 44, borderRadius: 12,
+        background: iconBg, color: iconColor,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: `${goal.color}10`, border: `1px solid ${goal.color}15`,
-        flexShrink: 0,
+        marginRight: 16
       }}>
-        <GoalIcon name={goal.icon} size={20} />
+        <Icon size={20} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>
-            {goal.name}
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 800, color: goal.color }}>
-            {pct}%
-          </span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>{activity.title}</div>
+        <div style={{ fontSize: 12, fontWeight: 500, color: '#64748b' }}>
+          {activity.category || 'Dépense'} • {format(parseISO(activity.date), "d MMM yyyy", { locale: fr })}
         </div>
-        <div className="progress-bar">
-          <div
-            className="progress-fill"
-            style={{
-              width: `${pct}%`,
-              background: goal.color,
-            }}
-          />
-        </div>
+      </div>
+      <div style={{ 
+        fontSize: 15, 
+        fontWeight: 700, 
+        color: isPositive ? '#10b981' : '#ef4444', 
+        fontVariantNumeric: 'tabular-nums'
+      }}>
+        {isPositive ? '+' : ''}{formatCurrency(activity.amount, currency as any)}
       </div>
     </div>
-  );
-}
-
-function BillUrgencyDot({ dueDate }: { dueDate: string }) {
-  const days = differenceInDays(parseISO(dueDate), new Date());
-  const color = days < 0 ? '#ef4444' : days <= 3 ? '#f59e0b' : '#10b981';
-  return (
-    <div style={{
-      width: 10, height: 10, borderRadius: '50%', background: color,
-      border: '2px solid #fff', boxShadow: `0 0 0 1px ${color}40`, flexShrink: 0,
-    }} />
   );
 }
 
 export default function Dashboard() {
-  const { data, totalSpentToday, totalSpentThisWeek, currency } = useApp();
-  const userName = data.settings?.name?.trim() || 'Utilisateur';
-  const [showModal, setShowModal] = useState<'money' | null>(null);
-  const router = useRouter();
+  const { data, totalSpentToday, currency, savingBalance } = useApp();
+  const { user } = useAuth();
+  const userName = data.settings?.name || user?.user_metadata?.full_name || user?.email || 'Gentl Gym';
+  
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
-  const activeGoals = data.goals.filter(g => !g.completed);
-  const completedGoals = data.goals.filter(g => g.completed).length;
-  const unpaidBills = data.bills.filter(b => !b.paid);
-  const recentPurchases = data.purchases.slice(0, 5);
-  const recentDeposits = data.deposits.slice(0, 4);
+  const activeGoals = data.goals.filter(g => (g.current_amount < g.target_amount));
+  const unpaidBills = data.bills.filter(b => b.status === 'unpaid');
+  
+  const recentActiveGoals = [...activeGoals].sort((a, b) => new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime());
+  const recentUnpaidBills = [...unpaidBills].sort((a, b) => new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime());
 
-  const upcomingBills = unpaidBills
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-    .slice(0, 4);
+  // Generate chart data for last 7 days
+  const { chartDataResult, hasAnyChartData } = useMemo(() => {
+    const end = new Date();
+    const start = subDays(end, 6);
+    const days = eachDayOfInterval({ start, end });
+    let hasAnyData = false;
 
-  const topGoal = activeGoals.sort((a, b) => {
-    const pa = b.currentAmount / b.targetAmount;
-    const pb = a.currentAmount / a.targetAmount;
-    return pa - pb;
-  })[0];
+    const result = days.map(date => {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const dayLabel = format(date, 'EEE', { locale: fr });
 
-  const topGoalPct = topGoal
-    ? Math.round((topGoal.currentAmount / topGoal.targetAmount) * 100)
-    : 0;
+      // Daily Expenses
+      const dayExpenses = data.purchases
+        .filter(p => p.date === dateStr)
+        .reduce((sum, p) => sum + p.amount, 0);
 
-  const motivationalHeader = () => {
-    if (completedGoals > 0) return `🏆 Grandiose ! Vous avez atteint ${completedGoals} objectif${completedGoals > 1 ? 's' : ''} !`;
-    if (topGoal && topGoalPct >= 75) return `🚀 Presque là ! ${topGoalPct}% de ${topGoal.name}`;
-    if (topGoal && topGoalPct >= 50) return `💪 Super boulot ! Déjà à moitié pour ${topGoal.name}`;
-    return `Salut ${userName}, C'est une excellente journée pour gérer vos finances.`;
-  };
+      // Cumulative Savings
+      const daySavings = data.savingTransactions
+        .filter(t => t.date <= dateStr)
+        .reduce((sum, t) => t.type === 'add' ? sum + t.amount : sum - t.amount, 0);
+
+      if (dayExpenses > 0 || daySavings > 0) hasAnyData = true;
+
+      return {
+        day: dayLabel.replace(/^\w/, c => c.toUpperCase()),
+        savings: daySavings,
+        expenses: dayExpenses,
+        fullDate: dateStr
+      };
+    });
+    return { chartDataResult: result, hasAnyChartData: hasAnyData };
+  }, [data.purchases, data.savingTransactions]);
+
+  const savingsTrend = useMemo(() => {
+    if (!hasAnyChartData) return "0%";
+    const last = chartDataResult[chartDataResult.length - 1].savings;
+    const first = chartDataResult[0].savings;
+    if (first === 0) return last > 0 ? "+100%" : "0%";
+    const pct = ((last - first) / first) * 100;
+    return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
+  }, [chartDataResult, hasAnyChartData]);
+
+  const unifiedActivities = useMemo(() => {
+    const activities: any[] = [];
+    data.purchases.forEach(p => {
+      activities.push({
+        id: `p-${p.id}`, type: 'purchase', title: p.note || 'Achat', category: p.category, amount: -p.amount, date: p.date, rawDate: parseISO((p as any).created_at || p.date),
+      });
+    });
+    data.deposits.forEach(d => {
+      const goal = data.goals.find(g => g.id === d.goal_id);
+      activities.push({
+        id: `d-${d.id}`, type: 'deposit', title: goal ? `Objectif: ${goal.title}` : 'Objectif', category: 'Objectif', amount: -d.amount, date: d.created_at.split('T')[0], rawDate: parseISO(d.created_at),
+      });
+    });
+    data.savingTransactions.forEach(s => {
+      const isAdd = s.type === 'add';
+      activities.push({
+        id: `s-${s.id}`, type: 'saving', title: s.note || (isAdd ? 'Dépôt Cagnotte' : 'Retrait Cagnotte'), category: 'Épargne Globale', amount: isAdd ? s.amount : -s.amount, date: s.date, rawDate: parseISO((s as any).created_at || s.date),
+      });
+    });
+    return activities.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+  }, [data.purchases, data.deposits, data.savingTransactions, data.goals]);
 
   return (
-    <div style={{ padding: '32px', maxWidth: 1240, margin: '0 auto' }}>
-      {/* Motivational Banner */}
-      <div
-        className="animate-fade-in-up"
-        style={{
-          padding: '24px 28px',
-          background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)',
-          border: '1px solid #c7d2fe',
-          borderRadius: 20,
-          marginBottom: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 20,
-          boxShadow: '0 4px 20px rgba(99,102,241,0.05)',
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#4338ca' }}>{motivationalHeader()}</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#818cf8', marginTop: 6, textTransform: 'capitalize' }}>
-            {format(new Date(), 'EEEE d MMMM, yyyy', { locale: fr })}
+    <div style={{ padding: '32px 40px', width: '100%', minHeight: '100vh', paddingBottom: 100 }}>
+      
+      {/* Hero Greeting Card */}
+      <div style={{
+        background: 'linear-gradient(to right, #eef2ff, #f8fafc)',
+        borderRadius: 20,
+        padding: '24px 32px',
+        marginBottom: 32,
+        border: '1px solid rgba(99, 102, 241, 0.1)',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
+      }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#312e81', marginBottom: 4 }}>
+          Salut {userName}, C'est une excellente journée pour gérer vos finances.
+        </h2>
+        <p style={{ fontSize: 13, color: '#6366f1', fontWeight: 500 }}>
+          {format(new Date(), "EEEE d MMMM, yyyy", { locale: fr }).replace(/^\w/, c => c.toUpperCase())}
+        </p>
+      </div>
+
+      {/* Main KPIs Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24, marginBottom: 24 }}>
+        
+        {/* Épargne Globale Card */}
+        <div style={{ background: '#fff', borderRadius: 24, padding: '32px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: '#e0e7ff', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <TrendingUp size={20} />
+              </div>
+               <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Épargne Globale</span>
+            </div>
+            <div style={{ background: '#dcfce7', color: '#16a34a', padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
+              {savingsTrend}
+            </div>
+          </div>
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ fontSize: 36, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.03em' }}>{formatCurrency(savingBalance || 0, currency)}</div>
+            <div style={{ fontSize: 13, color: '#64748b', fontWeight: 500, marginTop: 4 }}>Évolution des 7 derniers jours</div>
+          </div>
+          <div style={{ height: 160, width: '100%', marginTop: 'auto', marginLeft: -20, marginBottom: -10 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartDataResult} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorSavings" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="day" axisLine={{ stroke: '#f1f5f9' }} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} dy={10} />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                <Area type="monotone" dataKey="savings" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorSavings)" animationDuration={1000} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
-        {topGoal && (
-          <button
-            onClick={() => setShowModal('money')}
-            className="btn-primary"
-          style={{ padding: '12px 24px' }}
-          >
-            <Zap size={16} strokeWidth={2.5} /> 
-            <span style={{ fontWeight: 700 }}>Booster {topGoal.name}</span>
-          </button>
-        )}
-      </div>
 
-      {/* Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20, marginBottom: 32 }}>
-        <StatCard
-          label="Épargne Globale"
-          value={formatCurrency(data.savingBalance || 0, currency)}
-          sub={data.goals.length > 0 ? `${data.goals.length} objectifs` : undefined}
-          icon={<TrendingUp size={22} />}
-          color="#6366f1"
-          delay={0}
-          href="/cagnotte"
-        />
-        <StatCard
-          label="Factures en attente"
-          value={unpaidBills.length.toString()}
-          sub={upcomingBills[0] ? `Prochaine: ${upcomingBills[0].name}` : 'Tout réglé !'}
-          icon={<Receipt size={22} />}
-          color="#f59e0b"
-          delay={100}
-          href="/factures"
-        />
-        <StatCard
-          label="Dépenses / Jour"
-          value={formatCurrency(totalSpentToday, currency)}
-          sub={`${formatCurrency(totalSpentThisWeek, currency)} cette semaine`}
-          icon={<ShoppingBag size={22} />}
-          color="#10b981"
-          delay={200}
-          href="/achats"
-        />
-      </div>
-
-      {/* Main Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 24 }}>
-
-        {/* Goals Progress */}
-        <Link
-          href="/objectifs"
-          className="card animate-fade-in-up stagger-1" 
-          style={{ 
-            padding: '24px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease-in-out',
-            textDecoration: 'none',
-            display: 'block',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-            e.currentTarget.style.borderColor = 'var(--accent-indigo)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-            e.currentTarget.style.borderColor = 'transparent';
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <div className="section-label" style={{ marginBottom: 8 }}>Objectifs</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>Objectifs Prioritaires</div>
+        {/* Dépenses d'Aujourd'hui Card */}
+        <div style={{ background: '#fff', borderRadius: 24, padding: '32px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Calendar size={20} />
+              </div>
+               <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Dépenses d'Aujourd'hui</span>
             </div>
-            <div className="stat-pill">Actifs</div>
+            <div style={{ background: '#dcfce7', color: '#16a34a', padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
+              0.0%
+            </div>
           </div>
-          {activeGoals.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0' }}>
-              <div style={{ width: 56, height: 56, borderRadius: 16, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <Target size={28} color="#94a3b8" />
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ fontSize: 36, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.03em' }}>{formatCurrency(totalSpentToday, currency)}</div>
+            <div style={{ fontSize: 13, color: '#64748b', fontWeight: 500, marginTop: 4 }}>Dépenses quotidiennes (7j)</div>
+          </div>
+          <div style={{ height: 160, width: '100%', marginTop: 'auto', marginLeft: -20, marginBottom: -10 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartDataResult} margin={{ top: 10, right: 0, left: 0, bottom: 0 }} barSize={16}>
+                <XAxis dataKey="day" axisLine={{ stroke: '#f1f5f9' }} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} dy={10} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="expenses" fill="#f87171" radius={[4, 4, 4, 4]} animationDuration={1000} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24, marginBottom: 32 }}>
+        {/* Factures en attente */}
+        <Link href="/factures" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+          <div style={{ 
+            background: '#fff', 
+            borderRadius: 20, 
+            padding: '24px 32px', 
+            boxShadow: '0 2px 10px rgba(0,0,0,0.02)', 
+            border: '1px solid #f1f5f9',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer',
+            height: '100%'
+          }} 
+          onMouseEnter={(e) => {
+            e.currentTarget.style.boxShadow = '0 10px 25px rgba(0,0,0,0.05)';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.borderColor = '#e2e8f0';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.02)';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.borderColor = '#f1f5f9';
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                 <Receipt size={20} />
               </div>
-              <p style={{ fontSize: 14, fontWeight: 500, color: '#64748b' }}>Aucun objectif actif.</p>
-              <div
-                style={{ color: '#6366f1', fontSize: 13, fontWeight: 700, marginTop: 8 }}
-              >
-                Créer mon premier objectif
-              </div>
+              <div style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Factures en attente</div>
             </div>
-          ) : (
-            activeGoals.slice(0, 3).map(g => (
-              <GoalMiniCard key={g.id} goal={g} />
-            ))
-          )}
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{unpaidBills.length}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#d97706' }}>
+              {unpaidBills.length === 0 ? "C'est propre !" : "À payer prochainement"}
+            </div>
+
+            {recentUnpaidBills.length > 0 && (
+              <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+                {recentUnpaidBills.slice(0, 3).map(bill => (
+                  <div key={bill.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{bill.title}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#d97706' }}>{formatCurrency(bill.amount, currency)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </Link>
 
-        {/* Upcoming Bills */}
-        <Link
-          href="/factures"
-          className="card animate-fade-in-up stagger-2" 
-          style={{ 
-            padding: '24px',
+        {/* Objectifs Actifs */}
+        <Link href="/objectifs" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+          <div style={{ 
+            background: '#fff', 
+            borderRadius: 20, 
+            padding: '24px 32px', 
+            boxShadow: '0 2px 10px rgba(0,0,0,0.02)', 
+            border: '1px solid #f1f5f9',
+            transition: 'all 0.2s ease',
             cursor: 'pointer',
-            transition: 'all 0.2s ease-in-out',
-            textDecoration: 'none',
-            display: 'block',
+            height: '100%'
           }}
-          onMouseEnter={e => {
+          onMouseEnter={(e) => {
+            e.currentTarget.style.boxShadow = '0 10px 25px rgba(0,0,0,0.05)';
             e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-            e.currentTarget.style.borderColor = 'var(--accent-indigo)';
+            e.currentTarget.style.borderColor = '#e2e8f0';
           }}
-          onMouseLeave={e => {
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.02)';
             e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-            e.currentTarget.style.borderColor = 'transparent';
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <div className="section-label" style={{ marginBottom: 8 }}>Factures</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>Factures à venir</div>
-            </div>
-            <div className="stat-pill" style={{ background: '#fff7ed', color: '#c2410c' }}>Urgent</div>
-          </div>
-          {upcomingBills.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0' }}>
-              <div style={{ width: 56, height: 56, borderRadius: 16, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <CheckCircle size={28} color="#10b981" />
+            e.currentTarget.style.borderColor = '#f1f5f9';
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: '#fce7f3', color: '#db2777', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                 <Target size={20} />
               </div>
-              <p style={{ fontSize: 14, fontWeight: 500, color: '#64748b' }}>Tout est payé ! Bravo.</p>
+              <div style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Objectifs Actifs</div>
             </div>
-          ) : (
-            upcomingBills.map(bill => {
-              const days = differenceInDays(parseISO(bill.dueDate), new Date());
-              return (
-                <div key={bill.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 16,
-                  padding: '12px 0', borderBottom: '1px solid var(--border)',
-                }}>
-                  <div style={{ fontSize: 24 }}>🏠</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{bill.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: '#94a3b8' }}>
-                      {days < 0 ? 'En retard' : days === 0 ? 'Aujourd\'hui' : `Dans ${days} jours`}
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{activeGoals.length}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#db2777' }}>
+              {activeGoals.length === 0 ? "Prêt pour un nouveau défi ?" : "En cours de réalisation"}
+            </div>
+
+            {recentActiveGoals.length > 0 && (
+              <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16, borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+                {recentActiveGoals.slice(0, 3).map(goal => {
+                  const progress = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
+                  return (
+                    <div key={goal.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{goal.title}</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: '#64748b' }}>{progress}%</span>
+                      </div>
+                      <div style={{ height: 6, width: '100%', background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #db2777, #f472b6)', borderRadius: 99 }} />
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
-                      {formatCurrency(bill.amount, currency)}
-                    </span>
-                    <BillUrgencyDot dueDate={bill.dueDate} />
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </Link>
-
-        {/* Recent Activity */}
-        <Link
-          href="/achats"
-          className="card animate-fade-in-up stagger-3" 
-          style={{ 
-            padding: '24px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease-in-out',
-            textDecoration: 'none',
-            display: 'block',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-            e.currentTarget.style.borderColor = 'var(--accent-indigo)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-            e.currentTarget.style.borderColor = 'transparent';
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <div className="section-label" style={{ marginBottom: 8 }}>Activité</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>Activité Récente</div>
-            </div>
-            <ArrowUpRight size={18} color="#94a3b8" />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {/* Deposits */}
-            {recentDeposits.slice(0, 2).map(dep => {
-              const goal = data.goals.find(g => g.id === dep.goalId);
-              return (
-                <div key={dep.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 14,
-                  padding: '10px 0', borderBottom: '1px solid var(--border)',
-                }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: '#ecfdf5', color: '#10b981',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 16, flexShrink: 0,
-                  }}>
-                    <GoalIcon name={goal?.icon || 'DollarSign'} size={18} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-                      Dépôt: {goal?.name || 'Épargne'}
-                    </div>
-                    <div style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>{dep.date}</div>
-                  </div>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>
-                    +{formatCurrency(dep.amount, currency)}
-                  </span>
-                </div>
-              );
-            })}
-
-            {/* Purchases */}
-            {recentPurchases.slice(0, 3).map(purchase => (
-              <div key={purchase.id} style={{
-                display: 'flex', alignItems: 'center', gap: 14,
-                padding: '10px 0', borderBottom: '1px solid var(--border)',
-              }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: '#fff1f2',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16, flexShrink: 0,
-                }}>
-                  <ShoppingBag size={18} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{purchase.name}</div>
-                  <div style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8', textTransform: 'capitalize' }}>{purchase.category}</div>
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#ef4444', fontVariantNumeric: 'tabular-nums' }}>
-                  -{formatCurrency(purchase.amount, currency)}
-                </span>
+                  );
+                })}
               </div>
-            ))}
+            )}
           </div>
         </Link>
       </div>
 
-      {showModal && (
-        <QuickAddModal onClose={() => setShowModal(null)} defaultTab="money" />
-      )}
+      {/* Historique des Activités */}
+      <div>
+        <div style={{ background: '#fff', borderRadius: 24, padding: '32px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+            <div>
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Historique des Activités</h3>
+              <p style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>Vos 5 dernières opérations financières</p>
+            </div>
+            <div style={{ color: '#94a3b8' }}>
+              <Clock size={20} />
+            </div>
+          </div>
+          
+          <div>
+            {unifiedActivities.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8', fontSize: 14 }}>
+                Aucune activité récente.
+              </div>
+            ) : (
+              <>
+                {(showAllHistory ? unifiedActivities : unifiedActivities.slice(0, 5)).map(activity => (
+                  <ActivityRow key={activity.id} activity={activity} currency={currency} />
+                ))}
+                
+                {unifiedActivities.length > 5 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+                    <button
+                      onClick={() => setShowAllHistory(!showAllHistory)}
+                      style={{
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        padding: '10px 24px',
+                        borderRadius: 12,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: '#6366f1',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = '#f1f5f9';
+                        e.currentTarget.style.borderColor = '#cbd5e1';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = '#f8fafc';
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                      }}
+                    >
+                      {showAllHistory ? 'Réduire' : `Voir plus (${unifiedActivities.length - 5})`}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }

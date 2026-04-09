@@ -1,83 +1,68 @@
 export interface Goal {
   id: string;
-  name: string;
+  user_id: string;
+  title: string;
   icon: string;
-  targetAmount: number;
-  currentAmount: number;
+  target_amount: number;
+  current_amount: number;
   color: string;
-  createdAt: string;
-  deadline?: string;
-  completed: boolean;
-  completedAt?: string;
+  created_at: string;
 }
 
 export interface Bill {
   id: string;
-  name: string;
+  user_id: string;
+  title: string;
   amount: number;
-  dueDate: string;
-  paid: boolean;
-  recurring: boolean;
-  category: string;
-  paidAt?: string;
+  status: 'paid' | 'unpaid';
+  due_date: string;
+  created_at: string;
 }
 
 export interface Purchase {
   id: string;
-  name: string;
+  user_id: string;
   amount: number;
-  category?: string;
-  date: string;
   note?: string;
+  date: string;
+  created_at: string;
 }
 
 export interface SavingsDeposit {
   id: string;
-  goalId: string;
+  user_id: string;
+  goal_id: string;
   amount: number;
   date: string;
-  note?: string;
+  created_at: string;
 }
 
-export type Category =
-  | 'food'
-  | 'transport'
-  | 'entertainment'
-  | 'shopping'
-  | 'health'
-  | 'utilities'
-  | 'subscriptions'
-  | 'other';
+export interface SavingTransaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  type: 'add' | 'use';
+  category?: string;
+  note?: string;
+  date: string;
+  created_at: string;
+}
 
-export type BillCategory =
-  | 'rent'
-  | 'utilities'
-  | 'subscriptions'
-  | 'insurance'
-  | 'loan'
-  | 'other';
+export interface DailyRecord {
+  id: string;
+  user_id: string;
+  saved_amount: number;
+  spent_amount: number;
+  notes?: string;
+  date: string;
+  created_at: string;
+}
 
 export interface AppSettings {
   name: string;
   currency: 'MAD' | 'Riyal';
   notifications: boolean;
-  reminderDays: number;
-}
-
-export interface DailyRecord {
-  date: string; // yyyy-MM-dd
-  status?: 'saved' | 'spent' | 'rest';
-  notes?: string;
-}
-
-export interface SavingTransaction {
-  id: string;
-  type: 'add' | 'use';
-  amount: number;
-  date: string;
-  category?: string;
-  note?: string;
-  balanceAfter: number;
+  reminder_days: number;
 }
 
 export interface AppData {
@@ -86,8 +71,6 @@ export interface AppData {
   purchases: Purchase[];
   deposits: SavingsDeposit[];
   dailyRecords: DailyRecord[];
-  totalSavings: number;
-  savingBalance: number;
   savingTransactions: SavingTransaction[];
   settings?: AppSettings;
 }
