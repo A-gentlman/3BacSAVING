@@ -23,6 +23,7 @@ export interface Purchase {
   id: string;
   user_id: string;
   amount: number;
+  category?: string;
   note?: string;
   date: string;
   created_at: string;
