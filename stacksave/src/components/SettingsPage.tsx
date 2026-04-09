@@ -74,7 +74,11 @@ function ConfirmDialog({
   );
 }
 
-export default function SettingsPage() {
+interface SettingsPageProps {
+  onLogout?: () => void;
+}
+
+export default function SettingsPage({ onLogout }: SettingsPageProps) {
   const { data, updateSettings, currency, exportData, importData, resetData } = useApp();
   const { signOut, user } = useAuth();
   const [name, setName] = useState(data.settings?.name || '');
@@ -257,7 +261,7 @@ export default function SettingsPage() {
           <div style={{ height: 1, background: '#f1f5f9' }} />
 
           <button 
-            onClick={() => signOut()}
+            onClick={() => onLogout ? onLogout() : signOut()}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '12px 20px', borderRadius: 12, border: '1px solid #e2e8f0',
