@@ -49,7 +49,7 @@ const EMPTY_DATA: AppData = {
   },
 };
 
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({ children, currentUser }: { children: ReactNode; currentUser?: string }) {
   const { user } = useAuth();
   const [data, setData] = useState<AppData>(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
