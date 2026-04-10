@@ -74,6 +74,7 @@ export default function QuickAddModal({ onClose, defaultTab = 'purchase', initia
   const [savingNote, setSavingNote] = useState('');
   const [savingAmount, setSavingAmount] = useState('');
   const [savingCategory, setSavingCategory] = useState<'Revenu' | 'Économies' | 'Cadeau' | 'Autre'>('Économies');
+  const [savingDate, setSavingDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Editing logic (Bills/Goals)
   useEffect(() => {
@@ -185,6 +186,7 @@ export default function QuickAddModal({ onClose, defaultTab = 'purchase', initia
       type: 'add',
       category: savingCategory,
       note: savingNote || 'Dépôt rapide',
+      date: savingDate,
     });
     
     handleSuccess('L\'épargne a bien été créditée ! Bravo 💰');
@@ -444,15 +446,26 @@ export default function QuickAddModal({ onClose, defaultTab = 'purchase', initia
                     ))}
                   </div>
                 </div>
-                <div>
-                  <label className="label">Montant ({currency})</label>
-                  <input
-                    className="input"
-                    type="number"
-                    placeholder="100"
-                    value={savingAmount}
-                    onChange={e => setSavingAmount(e.target.value)}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label className="label">Montant ({currency})</label>
+                    <input
+                      className="input"
+                      type="number"
+                      placeholder="100"
+                      value={savingAmount}
+                      onChange={e => setSavingAmount(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Date</label>
+                    <input
+                      className="input"
+                      type="date"
+                      value={savingDate}
+                      onChange={e => setSavingDate(e.target.value)}
+                    />
+                  </div>
                 </div>
                 <button className="btn-primary" onClick={handleAddSaving} style={{ marginTop: 4 }}>
                   <TrendingUp size={15} /> Ajouter à l&apos;épargne
