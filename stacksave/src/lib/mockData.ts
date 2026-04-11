@@ -4,7 +4,7 @@ import { format, subDays, addDays } from 'date-fns';
 const today = new Date();
 const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
 
-export const mockData: AppData = {
+export const mockData: any = {
   totalSavings: 4850,
   goals: [
     {

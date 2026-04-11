@@ -206,7 +206,7 @@ export default function SavingSlotPage() {
                 <Tooltip 
                   contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
                   labelStyle={{ fontWeight: 700, color: '#0f172a', marginBottom: 4 }}
-                  formatter={(val: number) => [formatCurrency(val, currency), 'Cumulé']}
+                  formatter={(val: any) => [formatCurrency(Number(val), currency), 'Cumulé']}
                 />
                 <Area 
                   type="monotone" 
@@ -244,7 +244,7 @@ export default function SavingSlotPage() {
                 <Tooltip 
                   contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
                   labelStyle={{ fontWeight: 700, color: '#0f172a', marginBottom: 4 }}
-                  formatter={(val: number) => [formatCurrency(val, currency), 'Utilisé']}
+                  formatter={(val: any) => [formatCurrency(Number(val), currency), 'Utilisé']}
                 />
                 <Area 
                   type="monotone" 

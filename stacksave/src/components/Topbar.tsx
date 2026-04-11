@@ -27,7 +27,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
   
   const { title, subtitle } = pageTitles[pathname] || pageTitles['/dashboard'];
 
-  const unpaidBills = data.bills.filter(b => !b.paid).length;
+  const unpaidBills = data.bills.filter(b => b.status === 'unpaid').length;
 
   return (
     <>
